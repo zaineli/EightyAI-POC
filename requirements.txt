@@ -1,0 +1,13 @@
+# Core FastAPI dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# OCR and image processing
+pytesseract==0.3.10
+Pillow==10.2.0
+pdf2image==1.17.0
+
+# LLM integration
+httpx==0.25.2
+pydantic==2.5.0

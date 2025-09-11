@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+venv/
+uploads/
+processed_results/
+ocr_results/
+*.pdf
+*.xlsx
+*.log
+*.env
+*.docx
