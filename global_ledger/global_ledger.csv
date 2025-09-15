@@ -1,0 +1,29 @@
+Anomaly Type,Invoice date,Invoice ID,Customer name,Invoice amount (No VAT),VAT,Total Amount,Delivery note date,Delivery note number,Invoice number,Invoice date,Customer name
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer mismatch: Invoice shows Customer 024, Delivery Note shows Customer 025; Missing financial data in delivery note: No subtotal, VAT, or total amounts provided",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025; VAT amount missing in delivery note: Delivery note does not contain VAT information; Total amount missing in delivery note: Delivery note does not contain total amount information",,,,,,,,,,,
+,2025-07-30,FD-2025-0010,Oasis Supplies,3212.15,480.84,3692.99,2025-07-30,DN-2025-0010,FD-2025-0010,2025-07-30,Oasis Supplies
+No anomalies detected - perfect match between invoice and delivery note items,,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer number mismatch: Invoice=Customer 024, Delivery Note=Customer 025",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025",,,,,,,,,,,
+,2025-07-30,FD-2025-0010,Oasis Supplies,3212.15,480.84,3692.99,2025-07-30,DN-2025-0010,FD-2025-0010,2025-07-30,Oasis Supplies
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025; Delivery note contains pricing information (not typical for delivery notes)",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025; Delivery note contains pricing information (unusual)",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.8,263.4,2019.2,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025",,,,,,,,,,,
+,2025-03-12,FD-2025-0023,Customer 024,1755.80,263.40,2019.20,2025-03-12,DN-2025-0023,FD-2025-0023,2025-03-12,Customer 025
+"Customer name mismatch: Invoice=Customer 024, Delivery=Customer 025",,,,,,,,,,,
