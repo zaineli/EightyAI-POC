@@ -34,12 +34,18 @@ import zipfile
 
 from fastapi.responses import FileResponse  # add this import
 from pathlib import Path
+from openpyxl.styles import PatternFill, Font, Border, Side
 
 # Define base and ledger paths once
 BASE_DIR = Path(__file__).resolve().parent
 GLOBAL_LEDGER_DIR = BASE_DIR / "global_ledger"
 GLOBAL_LEDGER_CSV = GLOBAL_LEDGER_DIR / "global_ledger.csv"
 GLOBAL_LEDGER_XLSX = GLOBAL_LEDGER_DIR / "global_ledger.xlsx"
+
+
+LEDGER_DIR = Path(__file__).resolve().parent / "ledger"
+LEDGER_DIR.mkdir(exist_ok=True)
+LEDGER_FILE = LEDGER_DIR / "ledger.xlsx"
 
 # ...existing code...
 
@@ -734,6 +740,12 @@ async def process_job_files(job_id: str, job_dir: Path, pdf_files: List, system_
         
         # Extract CSV data from the response
         extracted_data = extract_csv_data_from_response(openrouter_response.get('response', ''))
+
+        # Update the global ledger
+        update_global_ledger(extracted_data, job_id)
+
+        # If you also want to update the specific ledger file, add this call:
+        update_ledger_with_extracted_data(extracted_data)
         
         # Save extracted CSV data for debugging
         with open(job_dir / "extracted_csv_data.json", "w", encoding="utf-8") as f:
@@ -2121,4 +2133,165 @@ def download_global_ledger_csv_alias():
         path=str(GLOBAL_LEDGER_CSV),
         media_type="text/csv",
         filename="global_ledger.csv",
+    )
+
+
+# Function to convert date string to Excel serial date
+def date_to_serial(date_str):
+    if not date_str:
+        return None
+    base_date = datetime(1899, 12, 30)
+    dt = datetime.strptime(date_str, '%Y-%m-%d')
+    return (dt - base_date).days
+
+# Step 1: Match ledger and extracted invoice data
+def match_ledger_invoice(ledger_row, extracted_invoice):
+    matches = {}
+    inv_date_serial = date_to_serial(extracted_invoice['Invoice date'])
+    matches['Invoice Date'] = ledger_row['Transaction Date'] == inv_date_serial if inv_date_serial is not None else False
+    matches['Customer Name'] = ledger_row['Customer Name'] == extracted_invoice['Customer name']
+    matches['Amount (No VAT)'] = abs(float(ledger_row['Amount (No VAT)']) - extracted_invoice['Invoice amount (No VAT)']) < 0.01
+    matches['VAT Amount'] = abs(float(ledger_row['VAT Amount']) - extracted_invoice['VAT']) < 0.01
+    matches['Total Amount'] = abs(float(ledger_row['Total Amount']) - extracted_invoice['Total Amount']) < 0.01
+    
+    overall_status = 'Match' if all(matches.values()) else 'Not Matched'
+    return matches, overall_status
+
+# Step 2: Match extracted invoice and delivery note
+def match_invoice_delivery(extracted_invoice, extracted_delivery_note):
+    matches = {}
+    matches['Invoice ID'] = extracted_invoice['Invoice ID'] == extracted_delivery_note['Invoice number']
+    matches['Invoice Date'] = extracted_invoice['Invoice date'] == extracted_delivery_note['Invoice date']
+    matches['Customer Name'] = extracted_invoice['Customer name'] == extracted_delivery_note['Customer name']
+    
+    overall_status = 'Match' if all(matches.values()) else 'Not Matched'
+    return matches, overall_status
+
+# Function to update ledger with extracted data from a job
+def update_ledger_with_extracted_data(extracted_data):
+    if not LEDGER_FILE.exists():
+        raise HTTPException(status_code=404, detail="Ledger file not found")
+    
+    # Load the Excel file with pandas for data manipulation
+    with pd.ExcelFile(LEDGER_FILE) as xls:
+        df_teting = pd.read_excel(xls, sheet_name='Teting Sheet', header=1)
+    
+    # Use openpyxl for precise cell updates
+    wb = openpyxl.load_workbook(LEDGER_FILE)
+    ws = wb['Teting Sheet']
+    
+    # Process each extracted invoice
+    updated = False
+    for inv_row in extracted_data['csv_data']['invoice_rows']:
+        parts = [p.strip() for p in inv_row.split(',')]
+        if len(parts) < 6:
+            continue
+        extracted_invoice = {
+            'Invoice date': parts[0],
+            'Invoice ID': parts[1],
+            'Customer name': parts[2],
+            'Invoice amount (No VAT)': float(parts[3]),
+            'VAT': float(parts[4]),
+            'Total Amount': float(parts[5])
+        }
+        
+        # Find matching delivery note by Invoice number
+        extracted_delivery_note = None
+        for dn_row in extracted_data['csv_data']['delivery_note_rows']:
+            dn_parts = [p.strip() for p in dn_row.split(',')]
+            if len(dn_parts) >= 5 and dn_parts[2] == extracted_invoice['Invoice ID']:
+                extracted_delivery_note = {
+                    'Delivery note date': dn_parts[0],
+                    'Delivery note number': dn_parts[1],
+                    'Invoice number': dn_parts[2],
+                    'Invoice date': dn_parts[3],
+                    'Customer name': dn_parts[4]
+                }
+                break
+        
+        if not extracted_delivery_note:
+            logger.warning(f"No matching delivery note for invoice {extracted_invoice['Invoice ID']}")
+            continue
+        
+        # Find row in Teting Sheet where Invoice ID matches
+        match_row = df_teting[df_teting['Invoice ID'] == extracted_invoice['Invoice ID']].index
+        if len(match_row) == 0:
+            logger.warning(f"No matching row found for Invoice ID: {extracted_invoice['Invoice ID']}")
+            continue
+        
+        match_row_idx = match_row[0] + 2  # Adjust for header (1-based, +1 for openpyxl)
+        ledger_row = df_teting.iloc[match_row[0]].to_dict()
+        
+        # Perform matches and log
+        ledger_matches, ledger_status = match_ledger_invoice(ledger_row, extracted_invoice)
+        inv_dn_matches, inv_dn_status = match_invoice_delivery(extracted_invoice, extracted_delivery_note)
+        logger.info(f"Ledger match for {extracted_invoice['Invoice ID']}: {ledger_status}")
+        logger.info(f"Invoice-Delivery match: {inv_dn_status}")
+        
+        # If mismatch, append to Anomaly Type (column 11)
+        if ledger_status == 'Not Matched' or inv_dn_status == 'Not Matched':
+            anomaly_cell = ws.cell(row=match_row_idx + 1, column=11)
+            current_anomaly = anomaly_cell.value or ""
+            new_anomaly = f"Ledger Mismatch: {ledger_status}; Invoice-Delivery Mismatch: {inv_dn_status}"
+            anomaly_cell.value = f"{current_anomaly}; {new_anomaly}" if current_anomaly else new_anomaly
+            
+            # Optional styling
+            anomaly_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+            anomaly_font = Font(color="9C6500")
+            anomaly_cell.fill = anomaly_fill
+            anomaly_cell.font = anomaly_font
+        
+        # Convert dates to serial numbers
+        inv_date_serial = date_to_serial(extracted_invoice['Invoice date'])
+        dn_date_serial = date_to_serial(extracted_delivery_note['Invoice date'])
+        dn_note_date_serial = date_to_serial(extracted_delivery_note['Delivery note date'])
+        
+        # Insert invoice data (columns M to R: 13 to 18)
+        invoice_data = [
+            inv_date_serial,
+            extracted_invoice['Invoice ID'],
+            extracted_invoice['Customer name'],
+            extracted_invoice['Invoice amount (No VAT)'],
+            extracted_invoice['VAT'],
+            extracted_invoice['Total Amount']
+        ]
+        for col, value in enumerate(invoice_data, start=13):
+            ws.cell(row=match_row_idx + 1, column=col, value=value)
+        
+        # Insert delivery data (columns T to X: 20 to 24)
+        delivery_data = [
+            dn_note_date_serial,
+            extracted_delivery_note['Delivery note number'],
+            extracted_delivery_note['Invoice number'],
+            dn_date_serial,
+            extracted_delivery_note['Customer name']
+        ]
+        for col, value in enumerate(delivery_data, start=20):
+            ws.cell(row=match_row_idx + 1, column=col, value=value)
+        
+        # Apply borders to the row
+        border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                        top=Side(style='thin'), bottom=Side(style='thin'))
+        for col in range(1, ws.max_column + 1):
+            ws.cell(row=match_row_idx + 1, column=col).border = border
+        
+        updated = True
+    
+    if updated:
+        wb.save(LEDGER_FILE)
+        logger.info(f"Ledger updated successfully for job")
+    else:
+        logger.info("No updates made to ledger - no matching entries found")
+
+
+
+# Add download endpoint
+@app.get("/ledger/download")
+def download_ledger():
+    if not LEDGER_FILE.exists():
+        raise HTTPException(status_code=404, detail="Ledger file not found")
+    return FileResponse(
+        path=str(LEDGER_FILE),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="ledger.xlsx"
     )
