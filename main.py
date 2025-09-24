@@ -2146,6 +2146,23 @@ def date_to_serial(date_str):
 
 # Step 1: Match ledger and extracted invoice data
 def match_ledger_invoice(ledger_row, extracted_invoice):
+    """
+    Match ledger data with extracted invoice data and return match status with actual values.
+    
+    Args:
+        ledger_row: Dictionary containing ledger data
+        extracted_invoice: Dictionary containing extracted invoice data
+        
+    Returns:
+        tuple: (matches, values_comparison, overall_status)
+            - matches: Dictionary of boolean values indicating field matches
+            - values_comparison: Dictionary containing both ledger and invoice values
+            - overall_status: String indicating overall match status
+    """
+    matches = {}
+    values_comparison = {}
+    
+def match_ledger_invoice(ledger_row, extracted_invoice):
     matches = {}
     inv_date_serial = date_to_serial(extracted_invoice['Invoice date'])
     matches['Invoice Date'] = ledger_row['Transaction Date'] == inv_date_serial if inv_date_serial is not None else False
@@ -2153,7 +2170,7 @@ def match_ledger_invoice(ledger_row, extracted_invoice):
     matches['Amount (No VAT)'] = abs(float(ledger_row['Amount (No VAT)']) - extracted_invoice['Invoice amount (No VAT)']) < 0.01
     matches['VAT Amount'] = abs(float(ledger_row['VAT Amount']) - extracted_invoice['VAT']) < 0.01
     matches['Total Amount'] = abs(float(ledger_row['Total Amount']) - extracted_invoice['Total Amount']) < 0.01
-    
+
     overall_status = 'Match' if all(matches.values()) else 'Not Matched'
     return matches, overall_status
 
@@ -2166,6 +2183,48 @@ def match_invoice_delivery(extracted_invoice, extracted_delivery_note):
     
     overall_status = 'Match' if all(matches.values()) else 'Not Matched'
     return matches, overall_status
+
+
+@app.get("/ledger/invoice/{invoice_id}")
+def get_ledger_data(invoice_id: str):
+    """
+    Retrieve ledger data for a specific invoice ID
+    """
+    if not LEDGER_FILE.exists():
+        raise HTTPException(status_code=404, detail="Ledger file not found")
+    
+    try:
+        # Load the Excel file with pandas for data manipulation
+        with pd.ExcelFile(LEDGER_FILE) as xls:
+            df_teting = pd.read_excel(xls, sheet_name='Teting Sheet', header=1)
+        
+        # Find row in Teting Sheet where Invoice ID matches
+        match_row = df_teting[df_teting['Invoice ID'] == invoice_id].index
+        
+        if len(match_row) == 0:
+            raise HTTPException(status_code=404, detail=f"No matching row found for Invoice ID: {invoice_id}")
+        
+        # Convert the matched row to a dictionary
+        ledger_row = df_teting.iloc[match_row[0]].to_dict()
+        
+        # Clean up any non-serializable data types (e.g., numpy values)
+        cleaned_row = {}
+        for key, value in ledger_row.items():
+            if isinstance(value, (np.integer, np.floating)):
+                cleaned_row[key] = float(value)
+            elif isinstance(value, np.bool_):
+                cleaned_row[key] = bool(value)
+            elif pd.isna(value):
+                cleaned_row[key] = None
+            else:
+                cleaned_row[key] = value
+        
+        return cleaned_row
+        
+    except Exception as e:
+        logger.error(f"Error retrieving ledger data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving ledger data: {str(e)}")
+    
 
 # Function to update ledger with extracted data from a job
 def update_ledger_with_extracted_data(extracted_data):
@@ -2242,9 +2301,9 @@ def update_ledger_with_extracted_data(extracted_data):
             anomaly_cell.font = anomaly_font
         
         # Convert dates to serial numbers
-        inv_date_serial = date_to_serial(extracted_invoice['Invoice date'])
-        dn_date_serial = date_to_serial(extracted_delivery_note['Invoice date'])
-        dn_note_date_serial = date_to_serial(extracted_delivery_note['Delivery note date'])
+        inv_date_serial = (extracted_invoice['Invoice date'])
+        dn_date_serial = (extracted_delivery_note['Invoice date'])
+        dn_note_date_serial = (extracted_delivery_note['Delivery note date'])
         
         # Insert invoice data (columns M to R: 13 to 18)
         invoice_data = [
